@@ -1,0 +1,49 @@
+---
+- hosts: all
+  become: true
+
+  tasks:
+    - name: Install aptitude
+      apt: name=aptitude state=latest update_cache=yes force_apt_get=yes
+
+    - name: Install system packages
+      apt: name={{ item }} state=latest update_cache=yes
+      loop: [ 'apt-transport-https', 'ca-certificates', 'curl', 'software-properties-common', 'python3-pip', 'virtualenv', 'python3-setuptools' ]
+
+    - name: Add Docker gpg key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: add Docker repo
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu xenial stable
+        state: present
+
+    - name: update apt and install docker
+      apt: update_cache=yes name=docker-ce state=latest
+
+    - name: install docker module for python
+      pip:
+        name: docker
+
+    - name: set docker logging to syslog
+      blockinfile:
+        path: /etc/docker/daemon.json
+        create: yes
+        block: |
+          {
+            "log-driver": "syslog"
+          }
+
+    - name: delete docker socket
+      file:
+        path: /var/run/docker.sock
+        state: absent
+
+    - name: enable docker syslog logging
+      systemd:
+        enabled: yes
+        state: restarted
+        name: docker
+

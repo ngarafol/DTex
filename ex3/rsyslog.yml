@@ -1,0 +1,28 @@
+---
+- hosts: all
+  roles:
+    - rsyslog
+  vars:
+    rsyslog_file_owner: syslog
+    rsyslog_file_group: adm
+    rsyslog_file_create_mode: '0640'
+    rsyslog_dir_create_mode: '0755'
+    rsyslog_umask: '0022'
+    rsyslog_priv_drop_to_user: syslog
+    rsyslog_priv_drop_to_group: syslog
+    rsyslog_files:
+      20-ufw:
+        rules:
+          - rule: ':msg,contains,"[UFW "'
+            logpath: '/var/log/ufw.log'
+      49-haproxy:
+        settings:
+          # Create an additional socket in haproxy's chroot in order to allow logging via
+          # /dev/log to chroot'ed HAProxy processes
+          - '$AddUnixListenSocket /var/lib/haproxy/dev/log'
+        rules:
+          # Send HAProxy messages to a dedicated logfile
+          - rule: ':programname, startswith, "haproxy"'
+            logpath: '/var/log/haproxy.log'
+        directives:
+          - '&~'

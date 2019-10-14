@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+import nmap
+import sqlite3
+from sqlite3 import Error
+import sys
+
+def create_connection(db_file):
+
+    conn = None
+    try:
+        conn = sqlite3.connect(db_file)
+    except Error as e:
+        print(e)
+
+    return conn
+
+def create_table(conn, create_table_sql):
+    """ create a table from the create_table_sql statement
+    :param conn: Connection object
+    :param create_table_sql: a CREATE TABLE statement
+    :return:
+    """
+    try:
+        c = conn.cursor()
+        c.execute(create_table_sql)
+    except Error as e:
+        print(e)
+
+def insert_last(conn, a):
+    """
+    Create a new task
+    :param conn:
+    :param task:
+    :return:
+    """
+
+    sql = ''' INSERT OR REPLACE INTO last(host,port_num,port_state,port_type)
+              VALUES(?,?,?,?) '''
+    c = conn.cursor()
+    c.execute(sql, a)
+
+def insert_data(conn, data):
+    """
+    Create a new task
+    :param conn:
+    :param task:
+    :return:
+    """
+
+    sql = ''' INSERT OR REPLACE INTO scan(host,port_num,port_state,port_type)
+              VALUES(?,?,?,?) '''
+    c = conn.cursor()
+    c.execute(sql, data)
+
+def delete_data(conn, host):
+    """
+    Create a new task
+    :param conn:
+    :param task:
+    :return:
+    """
+
+    sql = ''' delete from last where host=? '''
+    c = conn.cursor()
+    c.execute(sql, (host,))
+
+def delete_last(conn, host):
+    """
+    Create a new task
+    :param conn:
+    :param task:
+    :return:
+    """
+
+    sql = ''' delete from last where host=? '''
+    c = conn.cursor()
+    c.execute(sql, (host,))
+
+def select_last(conn, host):
+    """
+    Create a new task
+    :param conn:
+    :param task:
+    :return:
+    """
+    sql = ''' SELECT host, port_num, port_state, port_type from scan where host=? '''
+    c = conn.cursor()
+    c.execute(sql, (host,))
+
+def queryScan(conn, host):
+    """
+    Query scan results
+    :param conn: connection object
+    :return:
+    """
+
+def runScan(conn):
+    nm = nmap.PortScanner()
+    c = conn.cursor()
+    d = []
+
+    host = sys.argv[1]
+    
+    if(host == None): 
+        print ("Host is missing!")
+        exit(0)
+
+    nm.scan(host, '21-1024')
+    # run a loop to print all the found result about the ports
+    for host in nm.all_hosts():
+        for proto in nm[host].all_protocols():
+
+            lport = list(nm[host][proto].keys())
+            lport.sort()
+            for port in lport:
+                port_state = nm[host][proto][port]['state']
+                data = (host, port, port_state, proto)
+                d.append('Host: %s ' % (host)+"    Ports: "+str(port)+"/"+nm[host][proto][port]['state']+"/"+proto+"////")
+                with conn:
+                    insert_data(conn, data)
+        
+                c.execute("SELECT host, port_num, port_state, port_type FROM last WHERE host=? and port_num=? and port_type=?", (host, port, proto))
+                q1 = c.fetchall()
+        
+                c.execute("SELECT host, port_num, port_state, port_type FROM scan WHERE host=? and port_num=? and port_type=?", (host, port, proto))
+                q2 = c.fetchall()
+
+        if (q1 == q2):
+            print ("*Target - "+host+": No new records found in the last scan.*")
+        else:
+            print ("*Target - "+host+": Full Scan results:*")
+            print(*d, sep='\n')
+            
+        with conn:
+            delete_last(conn, host)
+            a = select_last(conn, host)
+            print(a)
+#            insert_last(conn, a)
+            delete_data(conn, host)
+
+def main():
+    database = "scanner.db"
+
+    sql_create_scan_table = """CREATE TABLE IF NOT EXISTS scan (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                                host TEXT NOT NULL, 
+                                port_num INTEGER NOT NULL, 
+                                port_state TEXT NOT NULL, 
+                                port_type TEXT NOT NULL);"""
+    sql_add_index = """ CREATE UNIQUE INDEX IF NOT EXISTS scan_idx on scan(host, port_num, port_state, port_type); """
+    sql_create_last_table = """CREATE TABLE IF NOT EXISTS last (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                                host TEXT NOT NULL, 
+                                port_num INTEGER NOT NULL, 
+                                port_state TEXT NOT NULL, 
+                                port_type TEXT NOT NULL);"""
+    sql_add_last_index = """ CREATE UNIQUE INDEX IF NOT EXISTS last_idx on last(host, port_num, port_state, port_type); """
+
+    # create connection to db
+    conn = create_connection(database)
+
+    if conn is not None:
+        create_table(conn, sql_create_scan_table)
+        create_table(conn, sql_add_index)
+        create_table(conn, sql_create_last_table)
+        create_table(conn, sql_add_last_index)
+    else:
+        print("Error! cannot create db connection.")
+
+    runScan(conn)
+#   queryScan(conn, nm.all_hosts())
+if __name__ == '__main__':
+    main()

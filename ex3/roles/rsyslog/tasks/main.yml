@@ -1,0 +1,48 @@
+---
+# tasks file for rsyslog
+
+- name: install rsyslog
+    apt: 
+      name: ['rsyslog'] 
+      state: latest
+
+#- name: setup rsyslog
+#  template: src=rsyslog.conf.j2 dest=/etc/rsyslog.conf owner=root mode=644
+#  notify: 
+#    - restart rsyslog
+
+- name: update specific configuration files
+  template:
+    src: etc/rsyslog.d/rsyslog.conf.j2
+    dest: "/etc/rsyslog.d/{{ item.key }}.conf"
+    validate: "{{ 'rsyslogd -N1 -f %s' if item.value.validate | default(true) else 'true %s' }}"
+    owner: root
+    group: root
+    mode: 0440
+  with_dict: "{{ rsyslog_files }}"
+  when: item.value.state | default('present') == 'present'
+  notify: restart rsyslog
+
+- name: remove configurations
+  file:
+    dest: "/etc/rsyslog.d/{{ item.key }}.conf"
+    state: absent
+  with_dict: "{{ rsyslog_files }}"
+  when: item.value.state | default('present') == 'absent'
+  notify: restart rsyslog
+
+- name: update global configuration file
+  template:
+    src: etc/rsyslog.conf.j2
+    dest: /etc/rsyslog.conf
+    validate: 'rsyslogd -N1 -f %s'
+    owner: root
+    group: root
+    mode: 0440
+  notify: restart rsyslog
+
+- name: start and enable service
+  service:
+    name: rsyslog
+    state: "{{ service_default_state | default('started') }}"
+    enabled: "{{ service_default_enabled | default(true) | bool }}"

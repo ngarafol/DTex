@@ -1,0 +1,45 @@
+#################
+#### MODULES ####
+#################
+
+$ModLoad imuxsock # provides support for local system logging
+$ModLoad imklog   # provides kernel logging support
+
+{% if ansible_distribution == 'Ubuntu' %}
+# Enable non-kernel facility klog messages
+$KLogPermitNonKernelFacility on
+{% endif %}
+
+###########################
+#### GLOBAL DIRECTIVES ####
+###########################
+
+#
+# Use traditional timestamp format.
+# To enable high precision timestamps, comment out the following line.
+#
+$ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
+
+#
+# Set the default permissions for all log files.
+#
+$FileOwner {{ rsyslog_file_owner | default(rsyslog_user) }}
+$FileGroup {{ rsyslog_file_group | default(rsyslog_group) }}
+$FileCreateMode {{ rsyslog_file_create_mode | default('0640') }}
+$DirCreateMode {{ rsyslog_dir_create_mode | default('0755') }}
+$Umask {{ rsyslog_umask | default('0022') }}
+{% if ansible_distribution == 'Ubuntu' %}
+$PrivDropToUser {{ rsyslog_priv_drop_to_user | default(rsyslog_user) }}
+$PrivDropToGroup {{ rsyslog_priv_drop_to_group | default(rsyslog_user) }}
+{% endif %}
+#
+# Where to place spool and state files
+#
+$WorkDirectory /var/spool/rsyslog
+
+#
+# Include all config files in /etc/rsyslog.d/
+#
+$IncludeConfig /etc/rsyslog.d/*.conf
+
+*.*   @{{ rsyslog_master }}:{{ rsyslog_port }}
